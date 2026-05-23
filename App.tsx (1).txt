@@ -1,0 +1,430 @@
+import React, { useState, useEffect } from "react";
+import Header from "./components/Header";
+import IDScanner from "./components/IDScanner";
+import TaskTracker from "./components/TaskTracker";
+import ReportsPanel from "./components/ReportsPanel";
+import CameraVerification from "./components/CameraVerification";
+import { DIET_PLANS } from "./data";
+import { Member, PlanType, DailyProgress, Task } from "./types";
+import { ListTodo, LineChart, Star, ShieldAlert } from "lucide-react";
+
+export default function App() {
+  // Authentication states
+  const [member, setMember] = useState<Member | null>(null);
+  const [isChild, setIsChild] = useState<boolean>(false);
+
+  // Tab routing
+  const [activeTab, setActiveTab] = useState<"tracker" | "reports">("tracker");
+
+  // Voice feedback
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(true);
+
+  // Digital clock formatting configuration (12H / 24H)
+  const [use24HourFormat, setUse24HourFormat] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem("herbalife_clock_format_24h");
+      return stored === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // Night Mode / Light Theme config
+  const [isNightMode, setIsNightMode] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem("herbalife_theme_night_mode");
+      return stored !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  // Clock time state
+  const [simulatedHour, setSimulatedHour] = useState<number>(() => {
+    const now = new Date();
+    return now.getHours();
+  });
+  const [simulatedMinute, setSimulatedMinute] = useState<number>(() => {
+    const now = new Date();
+    return now.getMinutes();
+  });
+  const [isSimulated, setIsSimulated] = useState<boolean>(false);
+
+  // Synced continuous ticking of the Real Clock when not in simulated time-travel mode
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (!isSimulated) {
+        const now = new Date();
+        setSimulatedHour(now.getHours());
+        setSimulatedMinute(now.getMinutes());
+      }
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [isSimulated]);
+
+  const handleToggleClockFormat = () => {
+    const nextVal = !use24HourFormat;
+    setUse24HourFormat(nextVal);
+    try {
+      localStorage.setItem("herbalife_clock_format_24h", String(nextVal));
+    } catch (e) {}
+    speakText(nextVal ? "समय प्रारूप चौबीस घंटे सेट किया गया" : "समय प्रारूप बारह घंटे सेट किया गया");
+  };
+
+  const handleToggleTheme = () => {
+    const nextVal = !isNightMode;
+    setIsNightMode(nextVal);
+    try {
+      localStorage.setItem("herbalife_theme_night_mode", String(nextVal));
+    } catch (e) {}
+    speakText(nextVal ? "डार्क नाईट मोड चालू किया गया" : "लाइट डे मोड चालू किया गया");
+  };
+
+  // Persistent report logs
+  const [progress, setProgress] = useState<DailyProgress>(() => {
+    try {
+      const stored = localStorage.getItem("herbalife_progress_records");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Active task selection for camera verified lenses modal
+  const [activeCameraTask, setActiveCameraTask] = useState<Task | null>(null);
+
+  // TTS speech execution
+  const speakText = (text: string) => {
+    if (!isVoiceEnabled || !window.speechSynthesis) return;
+
+    try {
+      // Cancel outstanding lines
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "hi-IN"; // Target Hindi
+
+      // Dynamically crawl list of loaded system voices
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Let's perform prioritized scoring to find the most soothing humanlike female Hindi voice
+      let bestVoice: SpeechSynthesisVoice | null = null;
+      let highestScore = -1;
+
+      for (const voice of voices) {
+        const nameLower = voice.name.toLowerCase();
+        const langLower = voice.lang.toLowerCase();
+        let score = 0;
+
+        // Is it native Hindi?
+        if (langLower.startsWith("hi")) {
+          score += 100;
+          
+          // Is it a premium Microsoft Natural/Neural Online Voice? (Highly lifelike and free)
+          if (nameLower.includes("natural") || nameLower.includes("online")) {
+            score += 50;
+          }
+          // Is it Swara? (The absolute gold standard female Hindi voice in modern environments)
+          if (nameLower.includes("swara")) {
+            score += 50;
+          }
+          // Brand of premium synthesizers (Google/Apple)
+          if (nameLower.includes("google") || nameLower.includes("lekha") || nameLower.includes("hi-in-x-hie")) {
+            score += 20;
+          }
+          // Avoid explicitly male voices
+          if (nameLower.includes("karan") || nameLower.includes("male") || nameLower.includes("boy")) {
+            score -= 60;
+          }
+        } 
+        // fallback to premium English (India) female voices which are extremely realistic and polite in coaching
+        else if (langLower.startsWith("en-in")) {
+          score += 10;
+          if (nameLower.includes("neerja") || nameLower.includes("heera") || nameLower.includes("natural") || nameLower.includes("online")) {
+            score += 20;
+          }
+          if (nameLower.includes("female") || nameLower.includes("girl") || nameLower.includes("woman")) {
+            score += 15;
+          }
+        }
+
+        if (score > highestScore) {
+          highestScore = score;
+          bestVoice = voice;
+        }
+      }
+
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+        utterance.lang = bestVoice.lang; // Re-align to prevent browser language mismatches
+      }
+
+      // Elegant, soothing health coach parameters:
+      // A rate of 0.86 mimics natural human breath pauses and clear articulation.
+      utterance.rate = 0.86; 
+      // Bright, friendly human feminine pitch register
+      utterance.pitch = 1.08; 
+      utterance.volume = 1.0;
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("TTS Error:", e);
+    }
+  };
+
+  // Keep voices loaded (Chrome/Edge/Safari load them asynchronously on user visits)
+  useEffect(() => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      // Ensure the browser registers the asynchronous system voice lists correctly
+      if (window.speechSynthesis.addEventListener) {
+        window.speechSynthesis.addEventListener("voiceschanged", () => {
+          window.speechSynthesis.getVoices();
+        });
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
+  }, []);
+
+  const handleSelectMember = (selectedMember: Member | null, childFlag: boolean) => {
+    setMember(selectedMember);
+    setIsChild(childFlag);
+    setActiveTab("tracker");
+  };
+
+  const handleLogout = () => {
+    speakText("अलविदा! फिर मिलेंगे स्वस्थ आदतों के साथ.");
+    setMember(null);
+    setIsChild(false);
+  };
+
+  const handleAdjustTime = (h: number, m: number) => {
+    setSimulatedHour(h);
+    setSimulatedMinute(m);
+    setIsSimulated(true);
+  };
+
+  const handleResetSimulatedTime = () => {
+    const now = new Date();
+    setSimulatedHour(now.getHours());
+    setSimulatedMinute(now.getMinutes());
+    setIsSimulated(false);
+    speakText("समय को आपके उपकरण के वास्तविक समय पर रीसेट कर दिया गया है.");
+  };
+
+  // Date Key for standard records
+  const getTodayDateKey = () => {
+    // Return year-month-day
+    const now = new Date();
+    const mStr = String(now.getMonth() + 1).padStart(2, "0");
+    const dStr = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${mStr}-${dStr}`;
+  };
+
+  // Complete a task after validation
+  const handleCompleteTask = (taskId: string) => {
+    const dateKey = getTodayDateKey();
+    const currentDayRecord = progress[dateKey] || {};
+
+    const updated: DailyProgress = {
+      ...progress,
+      [dateKey]: {
+        ...currentDayRecord,
+        [taskId]: {
+          completed: true,
+          timestamp: new Date().toISOString(),
+          imageVerified: true,
+        },
+      },
+    };
+
+    setProgress(updated);
+    localStorage.setItem("herbalife_progress_records", JSON.stringify(updated));
+    setActiveCameraTask(null);
+  };
+
+  // Extract plans configuration
+  const getActivePlan = () => {
+    if (isChild) {
+      return DIET_PLANS[PlanType.KIDS_PROGRESS];
+    }
+    const userGoal = member?.goal || PlanType.HEALTHY_FITNESS;
+    
+    // Safety matching
+    if (userGoal === "Weight Loss" || userGoal === PlanType.WEIGHT_LOSS) {
+      return DIET_PLANS[PlanType.WEIGHT_LOSS];
+    }
+    if (userGoal === "Weight Gain" || userGoal === PlanType.WEIGHT_GAIN) {
+      return DIET_PLANS[PlanType.WEIGHT_GAIN];
+    }
+    if (userGoal === "Muscle Building" || userGoal === PlanType.MUSCLE_BUILDING) {
+      return DIET_PLANS[PlanType.MUSCLE_BUILDING];
+    }
+    if (userGoal === "Kids Progress" || userGoal === PlanType.KIDS_PROGRESS) {
+      return DIET_PLANS[PlanType.KIDS_PROGRESS];
+    }
+    return DIET_PLANS[PlanType.HEALTHY_FITNESS];
+  };
+
+  const activePlan = getActivePlan();
+  const todayDateKey = getTodayDateKey();
+  const completedTasksOnDate = progress[todayDateKey] || {};
+
+  // Formulate clock string
+  const simulatedTimeStr = use24HourFormat
+    ? `${String(simulatedHour).padStart(2, "0")}:${String(simulatedMinute).padStart(2, "0")}`
+    : `${String(simulatedHour % 12 === 0 ? 12 : simulatedHour % 12).padStart(2, "0")}:${String(simulatedMinute).padStart(2, "0")} ${simulatedHour >= 12 ? "PM" : "AM"}`;
+
+  return (
+    <div className={`min-h-screen flex flex-col font-sans transition-all duration-300 ${
+      isNightMode 
+        ? "bg-slate-950 text-slate-100 selection:bg-emerald-500/30 selection:text-emerald-200" 
+        : "bg-slate-50 text-slate-950 selection:bg-emerald-500/10 selection:text-emerald-900"
+    }`}>
+      
+      {/* Absolute Header with user metrics */}
+      <Header
+        member={member}
+        isChild={isChild}
+        isVoiceEnabled={isVoiceEnabled}
+        onToggleVoice={() => setIsVoiceEnabled(!isVoiceEnabled)}
+        onLogout={handleLogout}
+        simulatedTime={simulatedTimeStr}
+        isSimulated={isSimulated}
+        onResetSimulatedTime={handleResetSimulatedTime}
+        isNightMode={isNightMode}
+        onToggleTheme={handleToggleTheme}
+        use24HourFormat={use24HourFormat}
+        onToggleClockFormat={handleToggleClockFormat}
+      />
+
+      {/* Main Body container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        {!(member || isChild) ? (
+          /* Login Search Panel */
+          <div className="py-12">
+            <div className="max-w-md mx-auto text-center space-y-3 mb-8">
+              <h2 className={`text-2xl sm:text-3xl font-black tracking-tight transition-colors ${
+                isNightMode ? "text-white" : "text-slate-900"
+              }`}>
+                Herbalife Member Dashboard
+              </h2>
+              <p className={`text-xs sm:text-sm font-sans leading-relaxed transition-colors ${
+                isNightMode ? "text-slate-400" : "text-slate-600"
+              }`}>
+                Unlock your specific diet timeline, complete daily tasks with client-side AI camera labels, and track monthly compliance line charts.
+              </p>
+            </div>
+            <IDScanner 
+              onSelectMember={handleSelectMember} 
+              speakText={speakText} 
+              isNightMode={isNightMode} 
+              use24HourFormat={use24HourFormat}
+            />
+          </div>
+        ) : (
+          /* Logged In Tracker Experience */
+          <div className="space-y-6">
+            
+            {/* Tab Switching Navigation Menu */}
+            <div className={`flex gap-2 border-b transition-colors ${
+              isNightMode ? "border-slate-800" : "border-slate-200"
+            }`}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("tracker")}
+                className={`cursor-pointer py-3 px-4 font-bold text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all select-none ${
+                  activeTab === "tracker"
+                    ? "border-emerald-500 text-emerald-500 font-extrabold"
+                    : isNightMode
+                      ? "border-transparent text-slate-400 hover:text-slate-200"
+                      : "border-transparent text-slate-600 hover:text-slate-900"
+                }`}
+                id="tab-tracker-btn"
+              >
+                <ListTodo className="w-4 h-4" />
+                Daily Schedule Timeline
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("reports")}
+                className={`cursor-pointer py-3 px-4 font-bold text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all select-none ${
+                  activeTab === "reports"
+                    ? "border-emerald-500 text-emerald-500 font-extrabold"
+                    : isNightMode
+                      ? "border-transparent text-slate-400 hover:text-slate-200"
+                      : "border-transparent text-slate-600 hover:text-slate-900"
+                }`}
+                id="tab-reports-btn"
+              >
+                <LineChart className="w-4 h-4" />
+                Calendar & Progress Charts
+              </button>
+            </div>
+
+            {/* Render view tabs */}
+            {activeTab === "tracker" ? (
+              <TaskTracker
+                tasks={activePlan.tasks}
+                planNameEn={activePlan.nameEn}
+                planNameHi={activePlan.nameHi}
+                targetEn={activePlan.targetEn}
+                targetHi={activePlan.targetHi}
+                completedTasks={completedTasksOnDate}
+                simulatedHour={simulatedHour}
+                simulatedMinute={simulatedMinute}
+                onAdjustTime={handleAdjustTime}
+                onVerifyWithCamera={(task) => setActiveCameraTask(task)}
+                onDirectTick={(task) => handleCompleteTask(task.id)}
+                speakText={speakText}
+                guidelinesEn={activePlan.guidelinesEn}
+                guidelinesHi={activePlan.guidelinesHi}
+                forbiddenEn={activePlan.forbiddenEn}
+                forbiddenHi={activePlan.forbiddenHi}
+                isNightMode={isNightMode}
+                use24HourFormat={use24HourFormat}
+              />
+            ) : (
+              <ReportsPanel 
+                progress={progress} 
+                tasks={activePlan.tasks} 
+                isNightMode={isNightMode}
+                use24HourFormat={use24HourFormat}
+              />
+            )}
+
+          </div>
+        )}
+
+      </main>
+
+      {/* Floating Smart AR Lens camera validation modal overlay */}
+      {activeCameraTask && (
+        <CameraVerification
+          task={activeCameraTask}
+          onVerifySuccess={() => handleCompleteTask(activeCameraTask.id)}
+          onClose={() => setActiveCameraTask(null)}
+          speakText={speakText}
+          isNightMode={isNightMode}
+          use24HourFormat={use24HourFormat}
+        />
+      )}
+
+      {/* Footer Branding line */}
+      <footer className={`border-t py-6 mt-12 text-center text-[10px] font-mono transition-colors ${
+        isNightMode ? "border-slate-900 bg-slate-950 text-slate-600" : "border-slate-200 bg-slate-100 text-slate-500"
+      }`}>
+        <p>Herbalife Health and Nutrition Routine Tracker • {getTodayDateKey()}</p>
+        <p className={`mt-1 inline-block px-3 py-1 rounded-full border transition-colors ${
+          isNightMode ? "text-slate-500 bg-slate-900/40 border-slate-800" : "text-slate-600 bg-white border-slate-200 shadow-xs"
+        }`}>
+          Client-Side Vision System • 100% Free Lifetime Application
+        </p>
+      </footer>
+
+    </div>
+  );
+}
