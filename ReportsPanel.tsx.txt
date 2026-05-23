@@ -1,0 +1,360 @@
+import React, { useState } from "react";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { Calendar as CalendarIcon, TrendingUp, BarChart3, Star, CheckSquare, Plus, CheckCircle2, Circle } from "lucide-react";
+import { DailyProgress, Task } from "../types";
+
+interface ReportsPanelProps {
+  progress: DailyProgress;
+  tasks: Task[];
+  isNightMode?: boolean;
+  use24HourFormat?: boolean;
+}
+
+export default function ReportsPanel({ 
+  progress, 
+  tasks,
+  isNightMode = true,
+  use24HourFormat = false,
+}: ReportsPanelProps) {
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Standard format YYYY-MM-DD
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+
+  // Calculate year/month grid
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-indexed
+
+  // Generate date cards for the current month
+  const getDaysInMonth = (y: number, m: number) => {
+    return new Date(y, m + 1, 0).getDate();
+  };
+
+  const daysCount = getDaysInMonth(year, month);
+  const dateList: string[] = [];
+  for (let i = 1; i <= daysCount; i++) {
+    const dStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+    dateList.push(dStr);
+  }
+
+  // Calculate task completions for a day
+  const getDayStats = (dateKey: string) => {
+    const dayProgress = progress[dateKey] || {};
+    const totalCount = tasks.length;
+    let completedCount = 0;
+
+    tasks.forEach((t) => {
+      if (dayProgress[t.id]?.completed) {
+        completedCount++;
+      }
+    });
+
+    const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+    return { completedCount, totalCount, percent };
+  };
+
+  // Prepare Daily Report Line Graph (hourly progress for selected date)
+  // Let's create data points corresponding to each task in chronological order
+  const getDailyChartData = () => {
+    const dayProgress = progress[selectedDate] || {};
+    let runningCompletions = 0;
+
+    return tasks.map((t, idx) => {
+      const isCompleted = dayProgress[t.id]?.completed ? 1 : 0;
+      if (isCompleted) {
+        runningCompletions++;
+      }
+      return {
+        // Human label e.g., "7:30 AM"
+        taskName: t.time,
+        // Cumulative completion percentage (reaches 100% if all tasks are done)
+        completions: runningCompletions,
+        "Status (Done=1)": isCompleted,
+      };
+    });
+  };
+
+  // Prepare Monthly Report Line Graph (percentage completion for each day of current month)
+  const getMonthlyChartData = () => {
+    return dateList.map((dStr) => {
+      const { percent } = getDayStats(dStr);
+      const dateNum = dStr.split("-")[2]; // just "02", "15" etc
+      return {
+        day: `Day ${dateNum}`,
+        "Completion %": percent,
+      };
+    });
+  };
+
+  const activeDayStats = getDayStats(selectedDate);
+  const dailyChartData = getDailyChartData();
+  const monthlyChartData = getMonthlyChartData();
+
+  return (
+    <div className={`border rounded-2xl shadow-xl overflow-hidden p-6 space-y-8 transition-colors ${
+      isNightMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-205 shadow-sm text-slate-900"
+    }`} id="reports-panel">
+      
+      {/* Visual Section Title */}
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 ${
+        isNightMode ? "border-slate-800" : "border-slate-100"
+      }`}>
+        <div>
+          <h2 className={`text-lg font-bold flex items-center gap-2 ${
+            isNightMode ? "text-white" : "text-slate-900"
+          }`}>
+            <CalendarIcon className="w-5 h-5 text-emerald-500" />
+            Calendar & Analytics Reports
+          </h2>
+          <p className={`${isNightMode ? "text-slate-400" : "text-slate-600"} text-xs`}>
+            Analyze compliance rates and view daily/monthly lines
+          </p>
+        </div>
+        <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border self-start ${
+          isNightMode ? "bg-slate-950 border-slate-800" : "bg-emerald-500/5 border-emerald-500/10 text-slate-800"
+        }`}>
+          <Star className="w-4 h-4 text-amber-400 fill-amber-400/20" />
+          <span className="text-xs font-semibold">
+            Selected Date: <span className="font-mono text-emerald-500 font-bold">{selectedDate}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Grid: Left Column (Interactive Calendar and Selected Day Tasks), Right Column (The Two Line Graphs) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Left Side: Calendar and Detailed list */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* Month Calendar Grid */}
+          <div className="space-y-3">
+            <h3 className={`text-xs font-bold font-mono uppercase tracking-wider ${
+              isNightMode ? "text-slate-350" : "text-slate-650"
+            }`}>
+              {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            </h3>
+            
+            <div className="grid grid-cols-7 gap-1.5 text-center">
+              {/* Day initials */}
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                <span key={i} className="text-[10px] text-slate-500 font-bold font-mono">
+                  {d}
+                </span>
+              ))}
+
+              {/* Pad previous month days */}
+              {Array.from({ length: new Date(year, month, 1).getDay() }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square opacity-0 pointer-events-none" />
+              ))}
+
+              {/* Days display cards */}
+              {dateList.map((dStr) => {
+                const dateNum = dStr.split("-")[2];
+                const isSelected = selectedDate === dStr;
+                const { percent } = getDayStats(dStr);
+
+                // Styling colors based on task completions and current theme mode
+                let ringColor = "";
+                if (isNightMode) {
+                  if (percent === 100) {
+                    ringColor = "border-emerald-500 bg-emerald-500/10 text-emerald-400 font-bold";
+                  } else if (percent > 0) {
+                    ringColor = "border-amber-500/60 bg-amber-500/10 text-amber-400";
+                  } else {
+                    ringColor = "border-slate-800 hover:border-slate-700 bg-slate-950/40 text-slate-400";
+                  }
+                  if (isSelected) {
+                    ringColor = "ring-2 ring-emerald-500 border-white bg-emerald-505 text-slate-950 font-extrabold";
+                  }
+                } else {
+                  // Light mode
+                  if (percent === 100) {
+                    ringColor = "border-emerald-300 bg-emerald-50 text-emerald-700 font-bold";
+                  } else if (percent > 0) {
+                    ringColor = "border-amber-300 bg-amber-50 text-amber-700";
+                  } else {
+                    ringColor = "border-slate-205 bg-white text-slate-600 hover:border-slate-300";
+                  }
+                  if (isSelected) {
+                    ringColor = "ring-2 ring-emerald-500 border-emerald-400 bg-emerald-500 text-white font-extrabold";
+                  }
+                }
+
+                return (
+                  <button
+                    key={dStr}
+                    type="button"
+                    onClick={() => setSelectedDate(dStr)}
+                    className={`aspect-square rounded-lg text-xs flex flex-col items-center justify-center transition-all border cursor-pointer select-none relative ${ringColor}`}
+                    title={`${dStr}: ${percent}% compliance`}
+                  >
+                    <span>{parseInt(dateNum)}</span>
+                    
+                    {/* Tiny bullet indicator */}
+                    {percent > 0 && !isSelected && (
+                      <span className={`w-1 h-1 rounded-full absolute bottom-1 ${
+                        percent === 100 ? "bg-emerald-500" : "bg-amber-500"
+                      }`} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-550 italic mt-1 leading-normal">
+              Legend: Grey = Empty | Amber = In progress | Green = 100% Completed tasks
+            </p>
+          </div>
+
+          {/* Selected Date Completed Logs list */}
+          <div className={`border rounded-xl p-4 space-y-3 transition-colors ${
+            isNightMode ? "bg-slate-950/70 border-slate-800" : "bg-slate-50 border-slate-200"
+          }`}>
+            <h4 className={`text-xs font-semibold font-mono uppercase tracking-wider ${
+              isNightMode ? "text-slate-300" : "text-slate-800"
+            }`}>
+              Completions on {selectedDate}
+            </h4>
+            
+            <div className="flex justify-between items-center text-xs">
+              <span className={isNightMode ? "text-slate-400" : "text-slate-600"}>Total Cleared tasks</span>
+              <span className="font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded font-mono">
+                {activeDayStats.completedCount} / {activeDayStats.totalCount} ({activeDayStats.percent}%)
+              </span>
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {tasks.map((t) => {
+                const isDone = progress[selectedDate]?.[t.id]?.completed;
+                
+                let rowStyle = "";
+                if (isNightMode) {
+                  rowStyle = isDone
+                    ? "bg-slate-900/60 border-emerald-500/20 text-slate-350"
+                    : "bg-slate-900/20 border-slate-800/60 text-slate-550";
+                } else {
+                  rowStyle = isDone
+                    ? "bg-white border-emerald-200 text-slate-800 font-medium"
+                    : "bg-white border-slate-100 text-slate-400";
+                }
+
+                return (
+                  <div
+                    key={t.id}
+                    className={`text-xs p-2 rounded-lg border flex items-center justify-between transition-colors ${rowStyle}`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      {isDone ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-555 shrink-0" />
+                      ) : (
+                        <Circle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      )}
+                      <span className={`font-mono text-[10px] ${isNightMode ? "text-slate-400" : "text-slate-505"}`}>{t.time}</span>
+                      <span className="truncate max-w-[150px]">{t.titleEn}</span>
+                    </div>
+                    {isDone && (
+                      <span className="text-[9px] bg-emerald-500/10 text-emerald-500 px-1 py-0.2 rounded font-mono font-bold">
+                        VERIFIED
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Side: The Two Line Graphs */}
+        <div className="lg:col-span-7 space-y-6">
+          
+          {/* Daily Report Line Chart */}
+          <div className={`border p-4 rounded-xl space-y-2 transition-colors ${
+            isNightMode ? "bg-slate-950/40 border-slate-850" : "bg-slate-100/40 border-slate-200"
+          }`}>
+            <div className="flex items-center justify-between">
+              <h4 className={`text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+                isNightMode ? "text-slate-300" : "text-slate-800"
+              }`}>
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                Daily Compliance Trend Line
+              </h4>
+              <span className={`text-[10px] font-mono font-bold uppercase ${
+                isNightMode ? "text-slate-400" : "text-slate-500"
+              }`}>{selectedDate}</span>
+            </div>
+            
+            <div className="h-60 w-full text-xs">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyChartData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isNightMode ? "#1e293b" : "#e2e8f0"} />
+                  <XAxis dataKey="taskName" stroke={isNightMode ? "#64748b" : "#475569"} tick={{ fontSize: 9 }} />
+                  <YAxis stroke={isNightMode ? "#64748b" : "#475569"} tick={{ fontSize: 9 }} />
+                  <Tooltip
+                    contentStyle={{ 
+                      backgroundColor: isNightMode ? "#0f172a" : "#ffffff", 
+                      borderColor: isNightMode ? "#334155" : "#cbcbcb",
+                      color: isNightMode ? "#f8fafc" : "#0f172a"
+                    }}
+                    labelStyle={{ color: isNightMode ? "#f8fafc" : "#0f172a", fontWeight: "bold" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line
+                    type="monotone"
+                    name="Running Completed Tasks Count"
+                    dataKey="completions"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Monthly Report Line Chart */}
+          <div className={`border p-4 rounded-xl space-y-2 transition-colors ${
+            isNightMode ? "bg-slate-950/40 border-slate-850" : "bg-slate-100/40 border-slate-200"
+          }`}>
+            <h4 className={`text-xs font-bold font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+              isNightMode ? "text-slate-300" : "text-slate-800"
+            }`}>
+              <BarChart3 className="w-4 h-4 text-emerald-500" />
+              Monthly Compliance Overview Line
+            </h4>
+            
+            <div className="h-60 w-full text-xs">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyChartData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isNightMode ? "#1e293b" : "#e2e8f0"} />
+                  <XAxis dataKey="day" stroke={isNightMode ? "#64748b" : "#475569"} tick={{ fontSize: 9 }} />
+                  <YAxis tickFormatter={(val) => `${val}%`} stroke={isNightMode ? "#64748b" : "#475569"} tick={{ fontSize: 9 }} />
+                  <Tooltip
+                    contentStyle={{ 
+                      backgroundColor: isNightMode ? "#0f172a" : "#ffffff", 
+                      borderColor: isNightMode ? "#334155" : "#cbcbcb",
+                      color: isNightMode ? "#f8fafc" : "#0f172a"
+                    }}
+                    labelStyle={{ color: isNightMode ? "#f8fafc" : "#0f172a", fontWeight: "bold" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line
+                    type="monotone"
+                    name="Daily Clear Rate %"
+                    dataKey="Completion %"
+                    stroke="#f59e0b"
+                    strokeWidth={2.5}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
