@@ -1,0 +1,179 @@
+import React from "react";
+import { Sparkles, Trophy, Volume2, VolumeX, LogOut, ShieldAlert, Sun, Moon } from "lucide-react";
+import { Member } from "../types";
+
+interface HeaderProps {
+  member: Member | null;
+  isChild: boolean;
+  isVoiceEnabled: boolean;
+  onToggleVoice: () => void;
+  onLogout: () => void;
+  simulatedTime: string;
+  isSimulated: boolean;
+  onResetSimulatedTime: () => void;
+  isNightMode: boolean;
+  onToggleTheme: () => void;
+  use24HourFormat: boolean;
+  onToggleClockFormat: () => void;
+}
+
+export default function Header({
+  member,
+  isChild,
+  isVoiceEnabled,
+  onToggleVoice,
+  onLogout,
+  simulatedTime,
+  isSimulated,
+  onResetSimulatedTime,
+  isNightMode,
+  onToggleTheme,
+  use24HourFormat,
+  onToggleClockFormat,
+}: HeaderProps) {
+  return (
+    <header className={`sticky top-0 z-50 border-b transition-colors duration-200 ${
+      isNightMode ? "bg-slate-900 border-slate-800 shadow-md" : "bg-white border-slate-200 shadow-sm"
+    }`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        
+        {/* Brand/Title */}
+        <div className="flex items-center space-x-3">
+          <div className="bg-gradient-to-tr from-emerald-500 to-teal-400 p-2 rounded-xl text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-950/25">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className={`text-base sm:text-lg font-bold tracking-tight flex items-center gap-1.5 font-sans ${
+              isNightMode ? "text-white" : "text-slate-900"
+            }`}>
+              Herbalife Companion <span className="text-[10px] bg-emerald-500/10 text-emerald-500 py-0.5 px-2 rounded-full border border-emerald-500/20 font-bold">Active</span>
+            </h1>
+            <p className={`text-[11px] font-mono ${isNightMode ? "text-slate-400" : "text-slate-500"}`}>
+              Daily Routine & AI Verification
+            </p>
+          </div>
+        </div>
+
+        {/* Status and Controls */}
+        <div className="flex items-center space-x-1.5 sm:space-x-3">
+          
+          {/* Format Toggle 12H / 24H */}
+          <button
+            type="button"
+            onClick={onToggleClockFormat}
+            className={`cursor-pointer p-2 rounded-lg transition-colors border flex items-center justify-center aspect-square ${
+              isNightMode
+                ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+            }`}
+            title={use24HourFormat ? "Switch to 12-hour AM/PM clock" : "Switch to 24-hour style clock"}
+            id="format-toggle-btn"
+          >
+            <span className="text-[10px] font-mono font-black tracking-tighter">{use24HourFormat ? "24H" : "12H"}</span>
+          </button>
+
+          {/* Theme Switcher Sun/Moon Button */}
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className={`cursor-pointer p-2 rounded-lg transition-colors border flex items-center justify-center ${
+              isNightMode
+                ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white"
+                : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+            }`}
+            title={isNightMode ? "☀️ Use Light Mode" : "🌙 Use Night Mode"}
+            id="theme-toggle-btn"
+          >
+            {isNightMode ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-indigo-700" />
+            )}
+          </button>
+
+          {/* Simulated Time Indicator */}
+          <div className={`flex items-center space-x-2 px-2.5 py-1 rounded-lg border transition-colors ${
+            isNightMode 
+              ? "bg-slate-800/60 border-slate-700/50" 
+              : "bg-emerald-500/5 border-emerald-500/10 text-slate-800"
+          }`}>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="text-right">
+              <p className={`text-[9px] font-mono leading-none font-bold uppercase ${
+                isNightMode ? "text-slate-400" : "text-slate-500"
+              }`}>Clock</p>
+              <p className={`text-xs font-semibold font-mono leading-tight ${
+                isNightMode ? "text-amber-300" : "text-emerald-700"
+              }`}>{simulatedTime}</p>
+            </div>
+            {isSimulated && (
+              <button 
+                type="button"
+                onClick={onResetSimulatedTime}
+                className={`text-[9px] font-bold font-mono ml-1.5 px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  isNightMode 
+                    ? "text-amber-400 hover:text-white bg-amber-500/10 hover:bg-amber-500/20" 
+                    : "text-emerald-600 hover:text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20"
+                }`}
+                title="Reset to your real device time"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Voice Output Toggle */}
+          <button
+            type="button"
+            onClick={onToggleVoice}
+            className={`cursor-pointer p-2 rounded-lg transition-all border flex items-center justify-center ${
+              isVoiceEnabled
+                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/25"
+                : isNightMode
+                  ? "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700"
+                  : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+            }`}
+            title={isVoiceEnabled ? "Mute Voice Feedback (Hindi)" : "Enable Voice Feedback (Hindi)"}
+            id="voice-toggle-btn"
+          >
+            {isVoiceEnabled ? (
+              <Volume2 className="w-4 h-4" />
+            ) : (
+              <VolumeX className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Active User Badging */}
+          {(member || isChild) && (
+            <div className="flex items-center space-x-2">
+              <div className="hidden md:flex flex-col text-right">
+                <span className={`text-xs font-semibold ${isNightMode ? "text-slate-200" : "text-slate-800"}`}>
+                  {isChild ? "Kids Progress" : member?.name}
+                </span>
+                <span className={`text-[10px] font-mono uppercase ${isNightMode ? "text-slate-400" : "text-slate-500"}`}>
+                  {isChild ? "No Member ID" : `ID: ${member?.memberId}`}
+                </span>
+              </div>
+
+              {/* Log Out */}
+              <button
+                type="button"
+                onClick={onLogout}
+                className={`cursor-pointer border p-2 rounded-lg transition-all ${
+                  isNightMode
+                    ? "bg-slate-800 hover:bg-red-950/30 border-slate-700 hover:border-red-900/40 text-slate-300 hover:text-red-400"
+                    : "bg-slate-100 hover:bg-red-50 hover:text-red-600 border-slate-200 hover:border-red-200 text-slate-600"
+                }`}
+                title="Log Out / Change Profile"
+                id="logout-btn"
+              >
+                <LogOut className="w-4 h-4 animate-pointer" />
+              </button>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </header>
+  );
+}
